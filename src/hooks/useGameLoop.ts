@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { processUpdate } from '../utils/gameEngine';
 import { calculateIAC } from '../utils/iacCalculator';
+import { useHydration } from './useHydration';
 
 /**
  * useGameLoop — hook singleton da montare una sola volta in App.tsx.
@@ -10,9 +11,12 @@ import { calculateIAC } from '../utils/iacCalculator';
  * o a seguito di azioni dirette del giocatore.
  */
 export function useGameLoop() {
+    const hydrated = useHydration();
     const storeRef = useRef(useGameStore.getState());
 
     useEffect(() => {
+        if (!hydrated) return;
+
         const unsub = useGameStore.subscribe(s => { storeRef.current = s; });
 
         // ── Catch-up all'apertura o al mount ──────────────────────────────────
@@ -73,5 +77,6 @@ export function useGameLoop() {
             unsub();
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, []); // mount-once
+    }, [hydrated]); // mount when hydrated
 }
+

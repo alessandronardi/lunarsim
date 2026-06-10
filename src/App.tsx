@@ -3,6 +3,7 @@ import { useGameStore } from './store/gameStore';
 import type { ActiveView } from './types/game';
 import { lunaCycleInfo, getGameDayInCycle } from './utils/gameFormulas';
 import { useGameLoop } from './hooks/useGameLoop';
+import { useHydration } from './hooks/useHydration';
 import { Background } from './components/Background';
 import { DashboardView } from './views/DashboardView';
 import { ResearchView } from './views/ResearchView';
@@ -92,6 +93,7 @@ function panelColor(stato: string): string {
 
 // ── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const hydrated = useHydration();
   // ── Avvia il loop di gioco real-time ────────────────────────────────────
   useGameLoop();
   const activeView = useGameStore(s => s.ui.activeView);
@@ -143,6 +145,17 @@ export default function App() {
 
   const positionPct = (dayFraction / 28) * 100;
   const tempSign = cycle.temperatura > 0 ? '+' : '';
+
+  if (!hydrated) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-mc-void text-mc-cyan font-mono text-xs select-none">
+        <div className="flex flex-col gap-3 items-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent border-mc-cyan"></div>
+          <p className="mt-2 tracking-widest uppercase text-mc-cyan font-semibold animate-pulse-slow">CONNETTENDO AL COGNITIVE CORE...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full w-full text-mc-text overflow-hidden">
