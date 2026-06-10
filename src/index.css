@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Reset base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  background-color: #070a0f;
+  color: #e2e8f0;
+  font-family: 'Inter', ui-sans-serif, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar Mission Control ──────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: #0d1117; }
+::-webkit-scrollbar-thumb  { background: #1f2937; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #00d4ff44; }
+
+/* ── Utilità globali ────────────────────────────────────────────────────── */
+@layer components {
+  /* Pannello con bordo sottile */
+  .mc-card {
+    @apply bg-mc-panel border border-mc-border rounded-lg;
+  }
+
+  /* Testo con accent ciano */
+  .mc-label {
+    @apply text-mc-dim text-xs font-mono uppercase tracking-widest;
+  }
+
+  /* Badge di stato */
+  .mc-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono;
+  }
+
+  /* Separatore orizzontale */
+  .mc-divider {
+    @apply border-t border-mc-border my-2;
+  }
+
+  /* Valore numerico in evidenza */
+  .mc-value {
+    @apply font-mono text-mc-cyan tabular-nums;
+  }
+
+  /* Pulsante primario */
+  .mc-btn {
+    @apply px-3 py-1.5 rounded text-sm font-mono font-medium
+           border border-mc-cyan text-mc-cyan
+           hover:bg-mc-cyan hover:text-mc-void
+           transition-colors duration-150;
+  }
+
+  /* Pulsante secondario */
+  .mc-btn-ghost {
+    @apply px-3 py-1.5 rounded text-sm font-mono
+           text-mc-dim border border-mc-border
+           hover:border-mc-muted hover:text-mc-text
+           transition-colors duration-150;
+  }
+
+  /* Dot di stato (online/offline) */
+  .mc-dot-online  { @apply w-2 h-2 rounded-full bg-mc-green shadow-mc-glow-green; }
+  .mc-dot-offline { @apply w-2 h-2 rounded-full bg-mc-muted; }
+  .mc-dot-warn    { @apply w-2 h-2 rounded-full bg-mc-amber shadow-mc-glow-amber; }
+  .mc-dot-danger  { @apply w-2 h-2 rounded-full bg-mc-red shadow-mc-glow-red; }
+}

@@ -1,0 +1,224 @@
+PROJECT SELENE: MASTER DEVELOPMENT BLUEPRINT
+
+Documento di Riferimento per Agente IA di Sviluppo (Versione Simulazione)
+
+1. CONTESTO DEL PROGETTO
+
+Nome: Progetto Selene
+Genere: Simulatore strategico/gestionale web-based sulla colonizzazione lunare.
+Ruolo Giocatore: SCC (Sistema di Controllo Centrale), un'IA che gestisce droni (URM - Unità Robotiche Modulari).
+Pacing: Simulazione lenta e strategica. Aggiornamenti di stato molto distanziati, focus su pianificazione, lettura dei dati e sopravvivenza ambientale.
+Obiettivo: Raggiungere il 100% dell'IAC (Indice di Autosufficienza Coloniale).
+
+2. STACK TECNOLOGICO E ARCHITETTURA
+
+Framework: React 18+ (Vite)
+
+Linguaggio: TypeScript (Strict Mode) - Tipizzazione rigorosa per ogni interfaccia.
+
+State Management: Zustand (con middleware persist per salvataggio in LocalStorage).
+
+Styling: Tailwind CSS (Tema scuro, stile "Mission Control" / Interfaccia tecnica). Evitare stringhe arbitrarie complesse nei render dinamici, preferire stili inline per posizionamenti matematici.
+
+Sistema Griglia: honeycomb-grid (v4+) renderizzata in SVG tramite React. Uso di coordinate cubiche (q, r) per distanze e raggio di segnale.
+
+Iconografia: lucide-react.
+
+2.1 Regola d'oro: Disaccoppiamento UI/Logica
+
+Il motore temporale aggiorna lo store ogni 15 secondi. Non sottoscrivere mai l'intero store nei componenti React. Usa selettori granulari (useGameStore(s => s.specificValue)) e React.memo sulle celle della griglia. L'aggiornamento UI avverrà in sync con il tick (nessuna interpolazione necessaria).
+
+2.2 Sfondo Dinamico e Immersività (UI)
+
+Per aumentare l'immersività della simulazione, l'interfaccia deve essere sovrapposta a uno sfondo dinamico che rispecchi l'avanzamento del tempo, il ciclo solare e l'escursione termica. Questo andrà implementato con un approccio ibrido ad alte prestazioni:
+
+Superficie e Crateri (Canvas Statico): Generati proceduralmente una sola volta al mount del componente. Il canvas va inserito in un contenitore circolare massiccio (es. 200vw), traslato verso il basso per creare visivamente l'orizzonte curvo della luna. Coerentemente con la rotazione sincrona lunare, la superficie rimane fissa e non ruota.
+
+Terminatore di Luce Dinamico (CSS): L'illusione dello scorrere del tempo è data da un overlay in sovrimpressione, realizzato con un radial-gradient che sfuma dal trasparente al nero totale. L'origine del gradiente (asse X) si sposta dinamicamente in base all'avanzare del giorno in-game (da Alba a Notte Profonda) per simulare lo scorrere della luce solare sulla curvatura.
+
+Gradienti Termici/Cromatici: La tonalità generale dell'illuminazione varia in base alla fase lunare e alla temperatura esterna. Verranno applicati overlay o filtri CSS per simulare il calore estremo del Giorno Pieno (luce cruda, leggeri riverberi caldi) e il gelo della Notte Profonda (toni blu, oscurità quasi totale e algida).
+
+📌 NOTA PER L'AGENTE IA: Un esempio calzante, testato e perfettamente funzionante di questa architettura visiva (comprensivo di Canvas procedurale, nuvole terrestri e stelle) è fornito nel file situato in documentazione/sfondo_lunarsim.tsx. È imperativo attingere a questo script come base per implementare il layer visivo di background.
+
+⚠️ ATTENZIONE - REQUISITI DI INTEGRAZIONE DELLO SFONDO:
+
+Sincronizzazione col Motore Temporale: Nello script di test, il tempo è accelerato artificialmente tramite un loop locale. Nel gioco finale, lo scorrimento del tempo (e l'aggiornamento dei gradienti visivi) deve dipendere esclusivamente dal valore day letto dallo store Zustand (GameState.time.day), che avanza in base ai veri Tick del gioco.
+
+Pulizia dell'UI di Test: Il file di esempio sfondo_lunarsim.tsx contiene un'interfaccia in sovrimpressione (slider del tempo, bottoni play/pausa, mini-dashboard dati). Questa UI ha solo scopo di debug visivo e NON va inclusa nel componente di background finale. I dati temporali, climatici e il ciclo lunare andranno invece integrati in una sezione UI persistente (es. Sidebar o Header condiviso tra tutte le viste). Il componente Background deve essere puramente grafico/visivo.
+
+2.3 Struttura delle Viste (Architettura Multi-Pagina)
+
+Il gioco non si svolge su un'unica schermata disordinata. L'interfaccia si comporterà come il terminale operativo dell'IA (SCC) e sarà divisa in 4 viste principali navigabili tramite una Sidebar o Navbar fissa. Lo sfondo dinamico (punto 2.2) e il motore temporale persistono trasversalmente a queste viste.
+
+Pannello di Controllo (Dashboard): La pagina principale di overview.
+
+Contenuto: Metriche principali (IAC, totali risorse), grafici di consumo/produzione (entrate/uscite al tick), proiezioni di autonomia.
+
+Focus: Dati climatici, orologio di fase lunare, alert di sistema, stato generale dei droni. Nessuna interazione diretta con la mappa.
+
+Sviluppo Colonia (Mappa Tattica): La pagina di espansione e interazione fisica.
+
+Contenuto: La griglia esagonale (honeycomb-grid) a tutto schermo.
+
+Focus: Selezione degli hex, costruzione delle strutture, posizionamento e spostamento degli URM, estensione della banda.
+
+Centro R&D (Ricerca e Sviluppo): La pagina di sblocco tecnologico.
+
+Contenuto: Alberi delle tecnologie o carte ricerca, divisi esplicitamente in due rami: Ricerche Lunari (richiedono potenza di Calcolo locale) e Ricerche Terrestri (richiedono invio dati/Banda o tempo).
+
+Enciclopedia / Archivio Dati: La pagina narrativa e documentale.
+
+Contenuto: Dettagli tecnici sulle strutture, lore del gioco, guide di sopravvivenza, registri delle comunicazioni della Terra.
+
+3. MOTORE TEMPORALE (TICK SYSTEM) E AMBIENTE
+
+Il gioco si basa su un ciclo continuo, bilanciato per restituire un feeling da simulatore pacato e strategico:
+
+1 Tick (Aggiornamento di Stato): 15000ms (15 secondi reali = ~2 ore in-game)
+
+1 Giorno In-Game: 12 Tick (3 minuti reali)
+
+1 Ciclo Lunare: 28 Giorni In-Game (84 minuti reali)
+
+3.1 Fasi Lunari (Ciclo di 28 Giorni)
+
+La fase determina l'efficienza solare e le temperature:
+
+ALBA (Giorno 0-3): Solare 0% -> 100% lineare. Temp in aumento.
+
+GIORNO PIENO (Giorno 3-14): Solare 100%. Temp estreme (+107°C) (penalità -20% ad estrazione ghiaccio).
+
+TRAMONTO (Giorno 14-17): Solare 100% -> 0% lineare. Temp in calo.
+
+NOTTE PROFONDA (Giorno 17-26): Solare 0%. Freddo estremo (-173°C) (Danno strutturale per edifici non protetti/riscaldati).
+
+PRE-ALBA (Giorno 26-28): Solare 0%. Freddo estremo, preparativi all'alba.
+
+4. SCHEMA DATI CENTRALE (ZUSTAND)
+
+Implementare esattamente questa interfaccia TypeScript come base del gioco:
+
+type StructureTier = 'BASE' | 'AVANZATO' | 'END-GAME';
+type StructureCategory = 'Controllo & Segnale' | 'Energia' | 'Estrazione & Produzione' | 'Ricerca & Elaborazione' | 'Infrastruttura';
+type GamePhase = 'ALBA' | 'GIORNO' | 'TRAMONTO' | 'NOTTE' | 'PREALBA';
+type ActiveView = 'DASHBOARD' | 'COLONIA' | 'RICERCA' | 'ENCICLOPEDIA';
+
+interface HexCell {
+  id: string;              // Formato "q,r"
+  q: number;               // Coordinata cube Q
+  r: number;               // Coordinata cube R
+  terrain: 'PIANO' | 'CRATERE' | 'RILIEVO' | 'OMBRA_PERMANENTE';
+  building_id: string | null;
+  assigned_drones: number;
+  signal_strength: number; // 0, 50, o 100
+  is_accessible: boolean;
+  has_ice_deposit: boolean;
+}
+
+interface GameState {
+  ui: { activeView: ActiveView; };
+  resources: {
+    energy: number;    bandwidth: number; compute: number;
+    regolith: number;  metals: number;    ice: number;
+    oxygen: number;    hydrogen: number;  helium3: number;
+    credits: number;   cement: number;
+  };
+  time: { tick: number; day: number; cycle: number; phase: GamePhase; };
+  drones: { total: number; available: number; assignments: Record<string, number>; };
+  grid: HexCell[];
+  iacIndex: number; // 0 to 100
+  structures: Record<string, StructureDefinition>;
+}
+
+
+5. MECCANICHE CORE (REGOLE MATEMATICHE)
+
+5.1 Efficienza Droni (Formula di Saturazione)
+
+L'output di una struttura al Tick dipende dai droni (URM) assegnati:
+Efficiency = Base_Yield * (1 + Math.log(Assigned_Drones / Optimal_Threshold))
+Nota: L'efficienza si blocca al 100% quando Assigned == Optimal.
+
+5.2 Rete e Banda (Bandwidth)
+
+Il Mainframe fornisce la banda iniziale (3 hex). Nessun drone può operare fuori dalla banda. Celle inaccessibili appaiono offline (grigie). I Ripetitori estendono la banda.
+
+5.3 Il Calcolo dell'IAC
+
+L'IAC (da 0 a 100) va calcolato ogni 2 tick (30 secondi reali) ed è la media pesata:
+
+Autonomia Energetica (25%)
+
+Autosufficienza Idrica (15%)
+
+Produzione Alimentare (Proxy via ossigeno/idrogeno) (15%)
+
+Capacità Mineraria (20%)
+
+Ricerca Autonoma (15%)
+
+Export Strategico (Elio-3) (10%)
+
+6. POOL DELLE STRUTTURE (MVP)
+
+ATTENZIONE per l'Agente IA: Il seguente catalogo "Core" deve essere salvato come dizionario di configurazione modulare. I valori di Produzione (production) sono intesi per SINGOLO TICK (15 secondi reali).
+
+interface StructureDefinition {
+  id: string;
+  name: string;
+  tier: StructureTier;
+  category: StructureCategory;
+  gridSize: number;
+  optimalDrones: number;
+  activePhases: GamePhase[];
+  prerequisites: string[];
+  buildCost: Partial<Record<keyof GameState['resources'], number>>;
+  production: Partial<Record<keyof GameState['resources'], number>>; // Output/Consumo a Tick
+  energyCostPerTick: number; // Valore positivo = consumo
+  health: number; // 0-100
+}
+
+
+6.1 Catalogo Iniziale (17 Strutture)
+
+CAT-A: Controllo & Segnale
+
+STR-A01 | Nucleo Base (Mainframe): Base. Fisso in 0,0. Banda: 3. Consumo: 15 Energia/tick. Genera: +5 Calcolo/tick.
+
+STR-A02 | Ripetitore di Segnale: Base. Estende banda di +2 (o +3 se su terreno RILIEVO).
+
+CAT-B: Energia
+3. STR-B01 | Pannello Solare: Base. Produce energia dipendente da Efficienza Solare della fase lunare (+20 di Giorno Pieno).
+4. STR-B02 | Batterie di Accumulo: Base. Stocca fino a 500 energia in eccedenza per la Notte.
+5. STR-B03 | Reattore Nucleare: Avanzato. +50 Energia costante, indipendente dal sole.
+6. STR-B04 | Cella a Combustibile (H₂): Avanzato. Usa Idrogeno per produrre energia d'emergenza di Notte.
+
+CAT-C: Estrazione & Produzione
+7. STR-C01 | Trivella Base: Base. Estrae Regolite (+10/tick) e Metalli (+5/tick). Bonus su CRATERE.
+8. STR-C02 | Trivella Pesante: Avanzato. Versione potenziata della C01 (+25 Regolite, +12 Metalli).
+9. STR-C03 | Estrattore di Ghiaccio: Base. Solo su celle has_ice_deposit. Resa minore di Giorno.
+10. STR-C04 | Elettrolizzatore: Base. Converte Ghiaccio in Ossigeno e Idrogeno.
+11. STR-C05 | Miniera Elio-3: Avanzato. Estrae Elio-3 per export.
+12. STR-C06 | Convertitore Regolite: End-Game. Converte Regolite in Cemento Lunare.
+
+CAT-D: Ricerca & Elaborazione
+13. STR-D01 | Mainframe Avanzato: Base. Genera +20 Calcolo.
+14. STR-D02 | Lab. di Ricerca Lunare: Avanzato. Efficienza +20% di Notte (i processori si raffreddano meglio).
+
+CAT-E: Infrastruttura
+15. STR-E01 | Deposito Centralizzato: Base. Aumenta i cap di stoccaggio risorse (+1000).
+16. STR-E02 | Officina Produzione URM: Avanzato. Crea nuovi droni. +1 URM ogni 12 tick (1 Giorno in-game).
+17. STR-E03 | Scudo Termico Modulare: Avanzato. Previene i danni da freddo sulle strutture adiacenti durante la Notte Profonda.
+
+7. STATO INIZIALE E ISTRUZIONI DI AVVIO
+
+Energia: 500 (Garantisce sopravvivenza limitata, forza il giocatore a costruire subito pannelli e batterie).
+
+Regolite: 300 | Metalli: 150 | Ghiaccio: 50 | Crediti: 500
+
+Droni iniziali (URM): 5
+
+Mappa Iniziale: honeycomb-grid con raggio 8 (dal centro 0,0). 60% Piano, 15% Rilievo, 15% Cratere, 10% Ombra Permanente.
+
+Istruzioni Operative per Agente IA:
+Procedere con l'implementazione partendo dallo scaffold Vite/React/Zustand. Iniziare dal setup del loop temporale (setInterval di 15000ms). Integrare poi il background statico con gradienti dinamici importandolo dal file documentazione/sfondo_lunarsim.tsx (avendo cura di applicare i Requisiti di Integrazione del punto 2.2). Successivamente, impostare il layout principale con uno state-based view switcher (es. Navbar a sinistra) per gestire le 4 pagine principali (Dashboard, Colonia, R&D, Enciclopedia). Infine, popolare la vista "Colonia" con la griglia e la vista "Dashboard" con i grafici.
