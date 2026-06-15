@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 
 import { AlertToast } from './components/AlertToast';
+import { AIUplinkPanel } from './components/AIUplinkPanel';
 
 // ── Navigazione ─────────────────────────────────────────────────────────────
 const NAV_ITEMS: { view: ActiveView; icon: React.ReactNode; label: string }[] = [
@@ -108,6 +109,8 @@ export default function App() {
   const [sessionStarted, setSessionStarted] = useState(() => {
     return sessionStorage.getItem('lunarsim_session_started') === 'true';
   });
+
+  const [isAiPanelOpen, setIsAiPanelOpen] = useState(false);
 
   const handleStartNew = () => {
     resetGame();
@@ -194,6 +197,22 @@ export default function App() {
                 {label}
               </button>
             ))}
+
+            {/* Bottone Uplink IA */}
+            <button
+              onClick={() => setIsAiPanelOpen(!isAiPanelOpen)}
+              title="Com-Link Houston (IA)"
+              className={`
+                flex flex-col items-center gap-1 py-2.5 px-1 mx-1 rounded
+                text-[9px] font-mono uppercase tracking-wider transition-all duration-150
+                ${isAiPanelOpen
+                  ? 'bg-mc-cyan/10 text-mc-cyan shadow-mc-glow-cyan'
+                  : 'text-mc-dim hover:text-mc-text hover:bg-mc-border'}
+              `}
+            >
+              <Radio size={20} className={isAiPanelOpen ? 'text-mc-cyan animate-pulse-slow' : 'text-mc-dim'} />
+              Uplink
+            </button>
 
             <button
               onClick={() => {
@@ -385,6 +404,7 @@ export default function App() {
         </>
       )}
       <AlertToast />
+      <AIUplinkPanel isOpen={isAiPanelOpen} onClose={() => setIsAiPanelOpen(false)} />
     </div>
   );
 }
