@@ -89,6 +89,16 @@ export interface ResearchState {
     progressHours: number; // ore accumulate sulla ricerca attiva
 }
 
+export interface CommsMessage {
+    id: string;
+    day: number;
+    cycle: number;
+    from: string;
+    text: string;
+    timestamp: number;
+    isAiGenerated?: boolean;
+}
+
 export interface GameAlert {
     id: string;         // uuid o timestamp per chiave React
     message: string;
@@ -128,4 +138,5 @@ export interface GameState {
     urmAccumulator: number;
     batteryCharge: Record<string, number>; // instanceId STR-B02 → carica accumulata
     engineAlerts: GameAlert[];  // buffer circolare, max 50
+    commsLog: CommsMessage[];
 }

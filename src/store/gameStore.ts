@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { GameState, HexCell, ActiveView, Resources, PlacedStructure } from '../types/game';
+import type { GameState, HexCell, ActiveView, Resources, PlacedStructure, CommsMessage } from '../types/game';
 import { dayToPhase, getGameDayInCycle, getGameCycle } from '../utils/gameFormulas';
 import { processUpdate, type UpdateResult } from '../utils/gameEngine';
 import { processHelium3Export, calculateIAC } from '../utils/iacCalculator';
@@ -8,6 +8,7 @@ import { RESEARCH, isResearchAvailable, type ResearchId } from '../data/research
 import { STRUCTURES } from '../data/structures';
 import { findSecondaryHexId, isHexOccupied } from '../utils/hexUtils';
 import { hasTerrestrialResearchBandwidth, isTerrestrialResearch } from '../utils/researchEffects';
+import { generateDailyCommsLog, generateProceduralCommsLog } from '../utils/geminiService';
 
 // ── Costanti ────────────────────────────────────────────────────────────────
 const GRID_RADIUS = 8;
@@ -181,6 +182,16 @@ function createInitialState(): Omit<GameState, 'setActiveView' | 'selectHex'> {
         urmAccumulator: 0,
         batteryCharge: {},
         engineAlerts: [],
+        commsLog: [
+            {
+                id: `init-0-0-${now}`,
+                day: 0,
+                cycle: 0,
+                from: 'Controllo Missione Houston',
+                text: 'Collegamento stabilito con il Sistema di Controllo Centrale (SCC) del Progetto Selene. Benvenuto a bordo. Il modulo principale Mainframe è operativo a coordinate (0,0). Iniziare ad analizzare i dintorni e ad espandere la rete.',
+                timestamp: now,
+            }
+        ],
     };
 }
 
@@ -229,6 +240,9 @@ type GameActions = {
     upgradeBaseCore: () => { success: boolean; error?: string };
     /** Ricalcola lo stato dal lastUpdateTime ad ora (singolo catch-up) */
     refreshState: () => void;
+    addCommsMessage: (msg: Omit<CommsMessage, 'id' | 'timestamp'>) => void;
+    generateDailyLog: (day: number, cycle: number) => Promise<void>;
+    triggerDailyLogs: (prevDay: number, newDay: number, prevCycle: number, newCycle: number) => Promise<void>;
 };
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -851,6 +865,9 @@ export const useGameStore = create<GameState & GameActions>()(
                 const dtHours = (now - s.time.lastUpdateTime) / 3_600_000;
                 if (dtHours <= 0) return;
 
+                const prevDay = s.time.day;
+                const prevCycle = s.time.cycle;
+
                 const result = processUpdate(s, dtHours);
                 s.applyUpdateResult(result);
 
@@ -859,6 +876,106 @@ export const useGameStore = create<GameState & GameActions>()(
 
                 const freshState = get();
                 freshState.updateIAC(calculateIAC(freshState));
+
+                // Controllo avanzamento giorno/ciclo
+                const newDay = freshState.time.day;
+                const newCycle = freshState.time.cycle;
+                if (newDay !== prevDay || newCycle !== prevCycle) {
+                    freshState.triggerDailyLogs(prevDay, newDay, prevCycle, newCycle);
+                }
+            },
+
+            addCommsMessage: (msg) => set(s => {
+                const id = `msg-${msg.cycle}-${msg.day}-${Date.now()}`;
+                const newMsg: CommsMessage = {
+                    id,
+                    timestamp: Date.now(),
+                    ...msg
+                };
+                const exists = s.commsLog.some(m => m.day === msg.day && m.cycle === msg.cycle && m.from === msg.from);
+                if (exists) return s;
+                return { commsLog: [...s.commsLog, newMsg] };
+            }),
+
+            generateDailyLog: async (day, cycle) => {
+                const state = get();
+                let isConnected = false;
+                try {
+                    const res = await fetch('/api/chat');
+                    if (res.ok) {
+                        const data = await res.json();
+                        isConnected = !!data.hasApiKey;
+                    }
+                } catch (e) {
+                    isConnected = false;
+                }
+
+                if (isConnected) {
+                    try {
+                        const log = await generateDailyCommsLog(state, day, cycle);
+                        get().addCommsMessage({
+                            day,
+                            cycle,
+                            from: log.from,
+                            text: log.text,
+                            isAiGenerated: true
+                        });
+                        return;
+                    } catch (err) {
+                        console.warn(`Generazione AI fallita per Giorno ${day}, uso fallback procedurale:`, err);
+                    }
+                }
+
+                const fallbackLog = generateProceduralCommsLog(state, day, cycle);
+                get().addCommsMessage({
+                    day,
+                    cycle,
+                    from: fallbackLog.from,
+                    text: fallbackLog.text,
+                    isAiGenerated: false
+                });
+            },
+
+            triggerDailyLogs: async (prevDay, newDay, prevCycle, newCycle) => {
+                const daysToGenerate: { day: number; cycle: number }[] = [];
+
+                if (prevCycle === newCycle) {
+                    for (let d = prevDay + 1; d <= newDay; d++) {
+                        daysToGenerate.push({ day: d, cycle: prevCycle });
+                    }
+                } else {
+                    for (let d = prevDay + 1; d <= 27; d++) {
+                        daysToGenerate.push({ day: d, cycle: prevCycle });
+                    }
+                    for (let c = prevCycle + 1; c < newCycle; c++) {
+                        for (let d = 0; d <= 27; d++) {
+                            daysToGenerate.push({ day: d, cycle: c });
+                        }
+                    }
+                    for (let d = 0; d <= newDay; d++) {
+                        daysToGenerate.push({ day: d, cycle: newCycle });
+                    }
+                }
+
+                if (daysToGenerate.length === 0) return;
+
+                const geminiThreshold = daysToGenerate.length - 2;
+
+                for (let i = 0; i < daysToGenerate.length; i++) {
+                    const { day, cycle } = daysToGenerate[i];
+                    if (i >= geminiThreshold) {
+                        await get().generateDailyLog(day, cycle);
+                    } else {
+                        const fallbackLog = generateProceduralCommsLog(get(), day, cycle);
+                        get().addCommsMessage({
+                            day,
+                            cycle,
+                            from: fallbackLog.from,
+                            text: fallbackLog.text,
+                            isAiGenerated: false
+                        });
+                    }
+                }
             },
         }),
         {
@@ -916,6 +1033,7 @@ export const useGameStore = create<GameState & GameActions>()(
                 paused: state.paused,
                 urmAccumulator: state.urmAccumulator,
                 batteryCharge: state.batteryCharge,
+                commsLog: state.commsLog,
             }),
         }
     )

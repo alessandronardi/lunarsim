@@ -29,6 +29,9 @@ export function useGameLoop() {
             const offlineMs = now - lastUpdate;
 
             if (offlineMs > 2000) { // più di 2 secondi → c'è stato tempo offline
+                const prevDay = state.time.day;
+                const prevCycle = state.time.cycle;
+
                 const offlineHours = offlineMs / 3_600_000;
                 console.log(`[GameLoop] Catch-up offline di ${offlineHours.toFixed(2)} ore`);
 
@@ -57,6 +60,12 @@ export function useGameLoop() {
                 const finalState = useGameStore.getState();
                 finalState.updateTime(now);
                 finalState.updateIAC(calculateIAC(finalState));
+
+                const newDay = finalState.time.day;
+                const newCycle = finalState.time.cycle;
+                if (newDay !== prevDay || newCycle !== prevCycle) {
+                    finalState.triggerDailyLogs(prevDay, newDay, prevCycle, newCycle);
+                }
             }
         };
 

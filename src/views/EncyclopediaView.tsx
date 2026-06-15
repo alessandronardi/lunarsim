@@ -369,44 +369,20 @@ const SURVIVAL_GUIDES = [
     },
 ];
 
-// ── Registri Comunicazioni Terra ──────────────────────────────────────────────
-const COMMS_LOG = [
-    {
-        day: 1,
-        from: 'ESA Houston',
-        text: 'SCC, confermiamo ricezione dati telemetrici. Il Mainframe è operativo. Ricordate: i pannelli solari vanno orientati prima dell\'alba lunare. Avete 14 giorni di luce, usateli bene. Firmato: Direttore Missione.',
-    },
-    {
-        day: 4,
-        from: 'Tokyo Space Authority',
-        text: 'Colonia, abbiamo analizzato i vostri dati di consumo energetico. La previsione non è rassicurante per la notte. Accelerate la costruzione delle batterie. Se l\'energia cade sotto 20 unità sostenete la sola struttura A01. Tutto il resto può attendere.',
-    },
-    {
-        day: 10,
-        from: 'ESA Research Division',
-        text: 'Trasmissione ricevuta. Il Blueprint per il Reattore Nucleare Compatto è in consegna su questo canale (ricerca terrestre: consuma banda). Richiede 500 crediti e heavy_drill come prerequisito. Stiamo lavorando con voi. In bocca al lupo.',
-    },
-    {
-        day: 17,
-        from: 'Progetto Selene — Registro di Missione',
-        text: '«Il primo mattone di cemento lunare è stato prodotto oggi. Non viene dalla Terra, non è stato spedito con un razzo da 2 miliardi. È fatto di Luna, costruito dalla Luna, per la Luna. La colonia ha smesso di essere un esperimento. Oggi è diventata un luogo.» — Operatore SCC',
-    },
-    {
-        day: 23,
-        from: 'ESA Houston',
-        text: 'L\'indice IAC ha superato il 40%. Siamo all\'interno delle proiezioni ottimali. A questo ritmo l\'autosufficienza completa è raggiungibile entro il ciclo 5. Continuate. La Terra sta guardando — ma non per molto: presto non avrete più bisogno che lo faccia.',
-    },
-    {
-        day: 28,
-        from: 'Banca Europea per l\'Export Spaziale',
-        text: 'Primo trasferimento crediti completato a fine ciclo. Elio-3 consegnato su orbita bassa: quantità ricevuta × tasso 1:50. I fondi sono stati accreditati sul conto operativo della colonia. Non è commercio — è indipendenza.',
-    },
-];
 
 // ── Vista Enciclopedia ────────────────────────────────────────────────────────
 export function EncyclopediaView() {
     const placed = useGameStore(s => s.placedStructures);
     const research = useGameStore(s => s.research ?? { completed: [], active: null, progressHours: 0 });
+    const commsLog = useGameStore(s => s.commsLog || []);
+
+    const sortedComms = useMemo(() => {
+        return [...commsLog].sort((a, b) => {
+            if (a.cycle !== b.cycle) return a.cycle - b.cycle;
+            if (a.day !== b.day) return a.day - b.day;
+            return a.timestamp - b.timestamp;
+        });
+    }, [commsLog]);
 
     const [search, setSearch] = useState('');
     const [filterCat, setFilterCat] = useState<string>('ALL');
@@ -632,23 +608,29 @@ export function EncyclopediaView() {
                         <p className="font-mono text-[9px] text-gray-600 text-center uppercase tracking-widest mb-2">
                             Registro Comunicazioni · Canale Terra → Selene · Classificato A2
                         </p>
-                        {COMMS_LOG.map((msg, i) => (
-                            <div key={i} className="rounded-2xl p-4 flex flex-col gap-2"
+                        {sortedComms.map((msg) => (
+                            <div key={msg.id} className="rounded-2xl p-4 flex flex-col gap-2"
                                 style={{
-                                    background: i % 2 === 0 ? 'rgba(8,20,40,0.75)' : 'rgba(4,12,28,0.75)',
-                                    border: '1px solid rgba(96,192,255,0.1)',
+                                    background: msg.isAiGenerated ? 'rgba(8,30,55,0.75)' : 'rgba(4,12,28,0.75)',
+                                    border: msg.isAiGenerated ? '1px solid rgba(0,212,255,0.2)' : '1px solid rgba(255,255,255,0.07)',
                                     backdropFilter: 'blur(16px)',
+                                    boxShadow: msg.isAiGenerated ? '0 0 12px rgba(0,212,255,0.03)' : 'none',
                                 }}>
                                 <div className="flex items-center gap-3">
-                                    <span className="font-mono text-[7px] text-gray-700 uppercase tracking-widest">
-                                        GIORNO {msg.day.toString().padStart(2, '0')} / 28
+                                    <span className="font-mono text-[7px] text-gray-500 uppercase tracking-widest">
+                                        CICLO {msg.cycle} · GIORNO {msg.day.toString().padStart(2, '0')} / 28
                                     </span>
-                                    <span className="font-mono text-[8px] font-bold text-cyan-600">{msg.from}</span>
-                                    <div className="flex-1 h-px" style={{ background: 'rgba(96,192,255,0.08)' }} />
-                                    <span className="font-mono text-[7px] text-green-800">● RICEVUTO</span>
+                                    <span className="font-mono text-[8px] font-bold text-cyan-500">{msg.from}</span>
+                                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.05)' }} />
+                                    {msg.isAiGenerated && (
+                                        <span className="font-mono text-[6px] px-1.5 py-0.5 rounded bg-cyan-950/40 text-cyan-400 border border-cyan-800/40 tracking-widest uppercase">
+                                            AI UPLINK
+                                        </span>
+                                    )}
+                                    <span className="font-mono text-[7px] text-emerald-500">● REGISTRATO</span>
                                 </div>
                                 <p className="font-mono text-[10px] text-gray-300 leading-relaxed pl-2"
-                                    style={{ borderLeft: '2px solid rgba(96,192,255,0.2)' }}>
+                                    style={{ borderLeft: msg.isAiGenerated ? '2px solid rgba(0,212,255,0.4)' : '2px solid rgba(255,255,255,0.2)' }}>
                                     {msg.text}
                                 </p>
                             </div>

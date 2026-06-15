@@ -181,3 +181,172 @@ export async function sendChatMessageToGemini(
 
   throw new Error("Impossibile connettersi ai server Gemini.");
 }
+
+/**
+ * Genera il log giornaliero proceduralmente in caso di offline o assenza di chiave API
+ */
+export function generateProceduralCommsLog(state: GameState, day: number, cycle: number): { from: string; text: string } {
+  const energy = state.resources.energy;
+  const ice = state.resources.ice;
+  const oxygen = state.resources.oxygen;
+  const phase = state.time.phase;
+
+  // 1. Carenza energia
+  if (energy < 100) {
+    return {
+      from: 'Controllo Missione Houston',
+      text: `Attenzione SCC. Rilevato livello critico di energia (${Math.round(energy)} W). Si consiglia di spegnere i moduli di produzione non essenziali e assegnare i droni URM alle batterie o ai generatori primari per evitare il blackout.`
+    };
+  }
+
+  // 2. Carenza ghiaccio/acqua
+  if (ice < 15) {
+    const hasTrivella = Object.values(state.placedStructures).some(p => p.definitionId === 'STR-C03');
+    return {
+      from: 'ESA Logistica',
+      text: hasTrivella 
+        ? `Segnalazione logistica: le riserve di ghiaccio sono scese a ${Math.round(ice)} unità. Ottimizzare l'allocazione dei droni URM sulle criotrivelle per ripristinare il flusso d'acqua.`
+        : `Allarme risorse: riserva di ghiaccio critica (${Math.round(ice)} unità) e nessun Estrattore (STR-C03) attivo. Costruire un estrattore su un deposito ghiaccio prima che il ciclo dell'ossigeno si interrompa.`
+    };
+  }
+
+  // 3. Nuove strutture commentate
+  const structures = Object.values(state.placedStructures);
+  if (structures.length > 1) {
+    const nonMainframe = structures.filter(s => s.definitionId !== 'STR-A01');
+    if (nonMainframe.length > 0) {
+      const randomStruct = nonMainframe[day % nonMainframe.length];
+      const name = STRUCTURES[randomStruct.definitionId]?.name || randomStruct.definitionId;
+      return {
+        from: 'Archivio Centrale SCC',
+        text: `Diagnostica sistemi: l'unità ${name} posizionata sul settore ${randomStruct.hexId} risponde correttamente ai ping di telemetria. Il rendimento è nominale e integrato nella griglia della colonia.`
+      };
+    }
+  }
+
+  // 4. Nuove ricerche sbloccate
+  if (state.research.completed.length > 0) {
+    const latestResearch = state.research.completed[state.research.completed.length - 1];
+    return {
+      from: 'Divisione R&D Terra',
+      text: `Uplink tecnologico completato. I dati relativi alla ricerca '${latestResearch}' sono stati integrati nei database locali. Nuovi blueprint strutturali sono ora disponibili per la costruzione.`
+    };
+  }
+
+  // 5. Ciclo lunare (es. Notte profonda)
+  if (phase === 'NOTTE' || phase === 'PREALBA') {
+    return {
+      from: 'Controllo Missione Houston',
+      text: `Fase di Notte Profonda in corso sul sito Selene. Temperatura esterna stabile a -173°C. Assicurarsi che gli scudi termici (STR-E03) siano attivi per prevenire danni da freddo criogenico alle strutture esposte.`
+    };
+  }
+
+  if (phase === 'ALBA') {
+    return {
+      from: 'Tokyo Space Authority',
+      text: `Rilevata prima luce solare sul terminatore. I pannelli fotovoltaici della base stanno riavviando la generazione elettrica. Regolare i sistemi di accumulo per immagazzinare il surplus giornaliero.`
+    };
+  }
+
+  // 6. Messaggio di default
+  const senders = ['ESA Houston', 'Controllo Missione Houston', 'Tokyo Space Authority', 'Archivio Centrale SCC'];
+  const selectedSender = senders[day % senders.length];
+  const defaultTexts = [
+    `Telemetria del giorno ${day} del ciclo ${cycle} ricevuta correttamente. Tutti i parametri vitali rientrano nei margini di tolleranza approvati. Procedere con i piani di espansione stabiliti.`,
+    `Rapporto di stato giornaliero: i droni URM operano all'efficienza prevista. Nessun sovraccarico rilevato sulla rete a terra. I sistemi di supporto vitale mantengono l'equilibrio dei gas.`,
+    `Collegamento radio stabile. La Terra conferma la ricezione dei registri telemetrici. L'indice di autosufficienza coloniale (IAC) è monitorato costantemente dai nostri analisti.`,
+  ];
+  return {
+    from: selectedSender,
+    text: defaultTexts[day % defaultTexts.length]
+  };
+}
+
+/**
+ * Chiama l'API di Gemini per generare il log giornaliero basandosi sullo stato corrente
+ */
+export async function generateDailyCommsLog(
+  state: GameState,
+  day: number,
+  cycle: number
+): Promise<{ from: string; text: string }> {
+  const { resources, time, drones, placedStructures, iacIndex, research } = state;
+
+  const structuresSummary: Record<string, number> = {};
+  Object.values(placedStructures).forEach(ps => {
+    const name = STRUCTURES[ps.definitionId]?.name || ps.definitionId;
+    structuresSummary[name] = (structuresSummary[name] || 0) + 1;
+  });
+  const structText = Object.entries(structuresSummary)
+    .map(([name, count]) => `${name} (x${count})`)
+    .join(', ') || 'Nessuna';
+
+  const researchCompletedText = research.completed.join(', ') || 'Nessuna';
+
+  const reportPrompt = `
+Genera una trasmissione radio o un registro di colonia per il giorno ${day} del ciclo ${cycle} del Progetto Selene.
+Ecco lo stato attuale della colonia:
+- IAC (Indice Autosufficienza): ${iacIndex.toFixed(1)}%
+- Fase Lunare corrente: ${time.phase} (Giorno ${time.day}/28 del ciclo ${time.cycle})
+- Risorse: Energia ${Math.round(resources.energy)}W, Metalli ${Math.round(resources.metals)}, Regolite ${Math.round(resources.regolith)}, Ghiaccio ${Math.round(resources.ice)}, Ossigeno ${Math.round(resources.oxygen)}, Idrogeno ${Math.round(resources.hydrogen)}, Elio-3 ${Math.round(resources.helium3)}, Cemento ${Math.round(resources.cement)}, Crediti ${Math.round(resources.credits)}
+- Droni URM: totali ${drones.total} (disponibili ${drones.available})
+- Strutture edificate: ${structText}
+- Ricerche completate: ${researchCompletedText}
+
+REGOLE DI GENERAZIONE:
+1. Restituisci l'output rigorosamente in formato JSON con la seguente struttura, senza altri testi o markdown esterni al blocco JSON:
+{
+  "from": "Nome del mittente (es. ESA Houston, Archivio SCC, Dipartimento Logistica, Tokyo Space Authority, ecc.)",
+  "text": "Messaggio di 1-3 frasi in italiano che commenta lo stato della colonia, i progressi (edifici costruiti, ricerche), la fase lunare, o le risorse."
+}
+2. Il tono deve essere serio, professionale, da ingegnere spaziale o IA di bordo, altamente immersivo.
+3. Il testo deve essere breve e conciso (massimo 280 caratteri per il campo "text").
+  `.trim();
+
+  const modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetch(
+        `/api/chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: model,
+            contents: [{ role: 'user', parts: [{ text: reportPrompt }] }],
+            systemInstruction: "Sei l'Ufficio Comunicazioni Terrestri o il Registro di Colonia SCC. Rispondi solo con un oggetto JSON valido contenente 'from' e 'text' in italiano.",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Errore HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!textResponse) {
+        throw new Error("Risposta vuota");
+      }
+
+      const cleanedText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanedText);
+      if (parsed.from && parsed.text) {
+        return { from: parsed.from, text: parsed.text };
+      }
+      throw new Error("JSON non contiene i campi richiesti");
+    } catch (error: any) {
+      console.warn(`Chiamata a ${model} per log giornaliero fallita:`, error);
+      if (model === modelsToTry[modelsToTry.length - 1]) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Tutti i modelli falliti");
+}
+
