@@ -638,7 +638,7 @@ describe('processUpdate', () => {
     it('does not produce resources or consume energy for a structure under construction that does not complete', () => {
         const b01: PlacedStructure = {
             instanceId: 'b01',
-            definitionId: 'STR-B01',
+            definitionId: 'STR-B02', // buildTimeHours: 1.0
             hexId: '1,0',
             health: 100,
             damaged: false,
@@ -662,20 +662,20 @@ describe('processUpdate', () => {
             },
         });
 
-        // Simula 0.5 ore. STR-B01 richiede 2 ore per essere costruita, quindi non si completa.
+        // Simula 0.5 ore. STR-B02 richiede 1 ora per essere costruita, quindi non si completa.
         const result = processUpdate(state, 0.5);
 
         // La produzione del pannello solare (normalmente +20 energy/h, netta +10/h con mainframe)
         // non dovrebbe avvenire, quindi il delta energetico del mainframe è solo -10 energy * 0.5 = -5
         expect(result.resourceDelta.energy).toBeCloseTo(-5, 1);
         expect(result.newPlacedStructures.b01.building).toBe(true);
-        expect(result.newPlacedStructures.b01.buildProgress).toBeCloseTo(0.25, 2);
+        expect(result.newPlacedStructures.b01.buildProgress).toBeCloseTo(0.5, 2);
     });
 
     it('only produces resources for the fraction of the tick after a structure completes construction', () => {
         const b01: PlacedStructure = {
             instanceId: 'b01',
-            definitionId: 'STR-B01',
+            definitionId: 'STR-B01', // buildTimeHours: 0.5
             hexId: '1,0',
             health: 100,
             damaged: false,
@@ -683,7 +683,7 @@ describe('processUpdate', () => {
             assignedDrones: 0,
             powerLevel: 100,
             building: true,
-            buildProgress: 0.5, // 50% completato. Su 2 ore, serve 1 ora per finire.
+            buildProgress: 0.5, // 50% completato. Su 0.5 ore, serve 0.25 ore per finire.
             buildStartTime: 0,
         };
         const state = makeMinimalGameState({
@@ -699,14 +699,14 @@ describe('processUpdate', () => {
             },
         });
 
-        // Simula 1.5 ore. La costruzione finisce dopo 1 ora.
+        // Simula 0.75 ore. La costruzione finisce dopo 0.25 ore.
         // Sarà attiva/operativa per le rimanenti 0.5 ore.
-        // Consumo mainframe: -10 energy/h * 1.5h = -15 energy.
+        // Consumo mainframe: -10 energy/h * 0.75h = -7.5 energy.
         // Produzione solare: +20 energy/h * 0.5h = +10 energy.
-        // Delta netto previsto: -15 + 10 = -5 energy.
-        const result = processUpdate(state, 1.5);
+        // Delta netto previsto: -7.5 + 10 = +2.5 energy.
+        const result = processUpdate(state, 0.75);
 
-        expect(result.resourceDelta.energy).toBeCloseTo(-5, 1);
+        expect(result.resourceDelta.energy).toBeCloseTo(2.5, 1);
         expect(result.newPlacedStructures.b01.building).toBe(false);
         expect(result.newPlacedStructures.b01.buildProgress).toBe(1.0);
         expect(result.alerts.some(a => a.includes('completato'))).toBe(true);
@@ -802,7 +802,7 @@ describe('getStructureActualRates', () => {
             health: 100,
             damaged: false,
             inStandby: false,
-            assignedDrones: 3, // optimal is 3
+            assignedDrones: 2, // 2 drones yield droneMult 1.5
             powerLevel: 100,
             building: false,
             buildProgress: 1.0,

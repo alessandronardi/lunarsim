@@ -8,6 +8,21 @@ import { structureColor } from './HexCellShape';
 import { X, Layers, Clock, Users, Zap, ShieldCheck, AlertCircle } from 'lucide-react';
 import type { Resources } from '../types/game';
 
+export function StructureImage({ id, name, className = "" }: { id: string; name: string; className?: string }) {
+    return (
+        <div className={`w-full rounded-xl border border-white/10 shadow-inner bg-slate-950/80 flex items-center justify-center p-2 ${className}`}>
+            <img
+                src={`/images/structures/${id.toLowerCase()}.png`}
+                alt={name}
+                className="w-full h-auto max-h-56 object-contain"
+                onError={(e) => {
+                    e.currentTarget.parentElement?.style.setProperty('display', 'none');
+                }}
+            />
+        </div>
+    );
+}
+
 interface StructureDetailModalProps {
     structureId: string;
     onClose: () => void;
@@ -103,36 +118,40 @@ export function StructureDetailModal({
                 <div className="h-1.5 w-full" style={{ background: `linear-gradient(90deg, ${color}dd, ${color}22)` }} />
 
                 {/* Header */}
-                <div className="flex items-start justify-between px-6 py-5 border-b border-white/5 bg-black/20">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2.5">
-                            <span 
-                                className="font-mono text-xs font-bold px-2 py-0.5 rounded border"
-                                style={{ 
-                                    color: color, 
-                                    backgroundColor: `${color}11`, 
-                                    borderColor: `${color}44` 
-                                }}
-                            >
-                                {def.id}
-                            </span>
-                            <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded tracking-widest text-white/55 bg-white/5 uppercase">
-                                TIER {def.tier === 'BASE' ? '1' : def.tier === 'AVANZATO' ? '2' : '3'}
-                            </span>
+                <div className="px-6 pt-5 pb-5 border-b border-white/5 bg-black/20">
+                    <div className="flex items-start justify-between">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2.5">
+                                <span 
+                                    className="font-mono text-xs font-bold px-2 py-0.5 rounded border"
+                                    style={{ 
+                                        color: color, 
+                                        backgroundColor: `${color}11`, 
+                                        borderColor: `${color}44` 
+                                    }}
+                                >
+                                    {def.id}
+                                </span>
+                                <span className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded tracking-widest text-white/55 bg-white/5 uppercase">
+                                    TIER {def.tier === 'BASE' ? '1' : def.tier === 'AVANZATO' ? '2' : '3'}
+                                </span>
+                            </div>
+                            <h3 className="font-title text-xl font-bold text-white tracking-wide mt-1.5">
+                                {def.name}
+                            </h3>
+                            <p className="font-mono text-[9px] text-gray-500 uppercase tracking-widest mt-0.5">
+                                {CATEGORY_LABEL[def.category] || def.category}
+                            </p>
                         </div>
-                        <h3 className="font-title text-xl font-bold text-white tracking-wide mt-1.5">
-                            {def.name}
-                        </h3>
-                        <p className="font-mono text-[9px] text-gray-500 uppercase tracking-widest mt-0.5">
-                            {CATEGORY_LABEL[def.category] || def.category}
-                        </p>
+                        <button 
+                            onClick={onClose}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all duration-200"
+                        >
+                            <X size={18} />
+                        </button>
                     </div>
-                    <button 
-                        onClick={onClose}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all duration-200"
-                    >
-                        <X size={18} />
-                    </button>
+
+                    <StructureImage id={structureId} name={def.name} className="mt-4" />
                 </div>
 
                 {/* Body */}

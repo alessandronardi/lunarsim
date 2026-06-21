@@ -86,6 +86,7 @@ export function makeMinimalGameState(overrides: Partial<GameState> = {}): GameSt
         urmAccumulator: 0,
         batteryCharge: {},
         engineAlerts: [],
+        commsLog: [],
         ...overrides,
     };
 }

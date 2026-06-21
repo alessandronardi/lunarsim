@@ -259,6 +259,18 @@ function StructCard({
                 <div className="px-4 pb-4 flex flex-col gap-4 border-t"
                     style={{ borderColor: isLocked ? 'rgba(255,255,255,0.04)' : `${cat.primary}22` }}>
 
+                    {/* Immagine Struttura in Enciclopedia */}
+                    <div className="w-full aspect-video rounded-lg overflow-hidden border border-white/10 relative shadow-inner bg-slate-950/80 mt-4 flex items-center justify-center">
+                        <img 
+                            src={`/images/structures/${id.toLowerCase()}.png`} 
+                            alt={def.name} 
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                                e.currentTarget.parentElement?.style.setProperty('display', 'none');
+                            }}
+                        />
+                    </div>
+
                     {/* Stats grid */}
                     <div className="grid grid-cols-2 gap-x-6 gap-y-2 pt-4">
                         {[
@@ -526,7 +538,7 @@ export function EncyclopediaView() {
                                     <p className="font-mono text-[10px] text-gray-700">Nessuna struttura trovata</p>
                                 </div>
                             ) : (
-                                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))' }}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
                                     {filtered.map(id => (
                                         <StructCard
                                             key={id}

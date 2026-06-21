@@ -188,7 +188,6 @@ export async function sendChatMessageToGemini(
 export function generateProceduralCommsLog(state: GameState, day: number, cycle: number): { from: string; text: string } {
   const energy = state.resources.energy;
   const ice = state.resources.ice;
-  const oxygen = state.resources.oxygen;
   const phase = state.time.phase;
 
   // 1. Carenza energia

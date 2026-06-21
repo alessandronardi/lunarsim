@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { RESEARCH, RESEARCH_LIST, type ResearchId, type ResearchDefinition } from '../data/research';
 import { STRUCTURES } from '../data/structures';
@@ -94,6 +94,21 @@ function ActiveResearchBar({
 }
 
 // ── Componente: singolo nodo tech ─────────────────────────────────────────────
+function ResearchImage({ id, name }: { id: string; name: string }) {
+    const [error, setError] = useState(false);
+    if (error) return null;
+    return (
+        <div className="w-full aspect-video rounded-lg overflow-hidden border border-white/10 relative shadow-inner bg-slate-950/80 mb-1 flex items-center justify-center">
+            <img 
+                src={`/images/research/${id}.png`} 
+                alt={name} 
+                className="w-full h-full object-contain"
+                onError={() => setError(true)}
+            />
+        </div>
+    );
+}
+
 function TechNode({
     def, status, progressPct,
     onStart,
@@ -139,6 +154,8 @@ function TechNode({
                         ? '0 0 12px rgba(0,255,136,0.08), inset 0 1px 0 rgba(0,255,136,0.06)'
                         : 'none',
             }}>
+
+            <ResearchImage id={def.id} name={def.name} />
 
             {/* Header */}
             <div className="flex items-start gap-3">
@@ -324,7 +341,7 @@ function BranchColumn({
                             <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.04)' }} />
                         </div>
                         {/* Cards */}
-                        <div className={`grid gap-3 ${tierNodes.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {tierNodes.map(def => {
                                 const status = getStatus(def.id, completed, active);
                                 const progressPct = status === 'IN_PROGRESS'
@@ -357,6 +374,8 @@ export function ResearchView() {
     const bandwidth = useGameStore(s => s.resources.bandwidth);
     const startRes = useGameStore(s => s.startResearch);
     const cancelRes = useGameStore(s => s.cancelResearch);
+
+    const [activeBranch, setActiveBranch] = useState<'LUNAR' | 'TERRESTRIAL'>('LUNAR');
 
     const d02Active = useMemo(
         () => Object.values(structures).some(ps => ps.definitionId === 'STR-D02' && !ps.inStandby && ps.health > 0),
@@ -418,17 +437,45 @@ export function ResearchView() {
                     onCancel={cancelRes}
                 />
 
-                {/* ── Alberi di ricerca ────────────────────────────────────────── */}
-                <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 420px' }}>
+                {/* ── Selettore di Ramo (Tabs) ────────────────────────────────── */}
+                <div className="flex gap-2 rounded-2xl p-1.5"
+                    style={{
+                        background: 'rgba(8,16,32,0.65)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
+                    }}>
+                    <button
+                        onClick={() => setActiveBranch('LUNAR')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-mono text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                            activeBranch === 'LUNAR'
+                                ? 'bg-[rgba(96,192,255,0.12)] text-[#60c0ff] border border-[rgba(96,192,255,0.3)] shadow-[0_0_15px_rgba(96,192,255,0.05)]'
+                                : 'text-gray-500 border border-transparent hover:bg-white/5 hover:text-gray-300'
+                        }`}
+                    >
+                        <span>🌙</span> Ramo Lunare ({lunarNodes.filter(n => research.completed.includes(n.id)).length}/{lunarNodes.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveBranch('TERRESTRIAL')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-mono text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                            activeBranch === 'TERRESTRIAL'
+                                ? 'bg-[rgba(96,192,255,0.12)] text-[#60c0ff] border border-[rgba(96,192,255,0.3)] shadow-[0_0_15px_rgba(96,192,255,0.05)]'
+                                : 'text-gray-500 border border-transparent hover:bg-white/5 hover:text-gray-300'
+                        }`}
+                    >
+                        <span>🌍</span> Ramo Terrestre ({terrestrialNodes.filter(n => research.completed.includes(n.id)).length}/{terrestrialNodes.length})
+                    </button>
+                </div>
 
-                    {/* Ramo Lunare */}
-                    <div className="rounded-2xl p-5 flex flex-col gap-5"
-                        style={{
-                            background: 'rgba(8,16,32,0.65)',
-                            border: '1px solid rgba(255,255,255,0.07)',
-                            backdropFilter: 'blur(20px)',
-                            boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
-                        }}>
+                {/* ── Contenuto Ramo Selezionato ─────────────────────────────── */}
+                <div className="rounded-2xl p-5 flex flex-col gap-5"
+                    style={{
+                        background: 'rgba(8,16,32,0.65)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
+                    }}>
+                    {activeBranch === 'LUNAR' ? (
                         <BranchColumn
                             title="Ramo Lunare"
                             icon={<span className="text-sm">🌙</span>}
@@ -439,16 +486,7 @@ export function ResearchView() {
                             onStart={startRes}
                             bandwidth={bandwidth}
                         />
-                    </div>
-
-                    {/* Ramo Terrestre */}
-                    <div className="rounded-2xl p-5 flex flex-col gap-5"
-                        style={{
-                            background: 'rgba(8,16,32,0.65)',
-                            border: '1px solid rgba(255,255,255,0.07)',
-                            backdropFilter: 'blur(20px)',
-                            boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
-                        }}>
+                    ) : (
                         <BranchColumn
                             title="Ramo Terrestre"
                             icon={<span className="text-sm">🌍</span>}
@@ -459,7 +497,7 @@ export function ResearchView() {
                             onStart={startRes}
                             bandwidth={bandwidth}
                         />
-                    </div>
+                    )}
                 </div>
 
                 {/* ── Legenda effetti ricerche completate ─────────────────────── */}
